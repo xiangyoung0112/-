@@ -25,9 +25,33 @@
             margin-bottom: 20px;
             border-radius: 6px;
         }
+        
+        /* === 深色模式 (Dark Mode) 樣式 === */
+        body.dark-mode { background-color: #18191a; color: #e4e6eb; }
+        .dark-mode .card { background-color: #242526; color: #e4e6eb; border: 1px solid #3a3b3c; }
+        .dark-mode .upload-area { background-color: #242526; border-color: #0d6efd; color: #e4e6eb; }
+        .dark-mode .upload-area:hover { background-color: #3a3b3c; }
+        .dark-mode .info-box { background-color: #3a3b3c; border-left-color: #0d6efd; color: #e4e6eb; }
+        .dark-mode .text-muted { color: #b0b3b8 !important; }
+        .dark-mode .table { color: #e4e6eb; border-color: #3a3b3c; }
+        .dark-mode .table-dark { background-color: #18191a; }
+        .dark-mode .table-hover > tbody > tr:hover > * { color: #ffffff; background-color: #3a3b3c; }
+        .dark-mode .modal-content { background-color: #242526; border-color: #3a3b3c; color: #e4e6eb; }
+        .dark-mode .modal-header, .dark-mode .modal-footer { border-color: #3a3b3c; }
+        .dark-mode .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+        .dark-mode .form-select, .dark-mode .form-control { background-color: #3a3b3c; color: #e4e6eb; border-color: #4a4b4c; }
+        .dark-mode .form-select:focus, .dark-mode .form-control:focus { background-color: #4a4b4c; color: #fff; }
+        .dark-mode .dataTables_wrapper .dataTables_length, .dark-mode .dataTables_wrapper .dataTables_filter,
+        .dark-mode .dataTables_wrapper .dataTables_info, .dark-mode .dataTables_wrapper .dataTables_paginate { color: #e4e6eb !important; }
+        .dark-mode .page-item .page-link { background-color: #242526; border-color: #3a3b3c; color: #e4e6eb; }
+        .dark-mode .page-item.active .page-link { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
+        .dark-mode .page-item.disabled .page-link { background-color: #18191a; border-color: #3a3b3c; color: #6c757d; }
     </style>
 </head>
 <body>
+
+<!-- 深色模式切換按鈕 -->
+<button class="btn btn-outline-secondary position-fixed top-0 end-0 m-3" id="themeToggle" onclick="toggleTheme()" style="z-index: 1050;">🌙 深色模式</button>
 
 <div class="container-fluid">
     <div class="row justify-content-center mb-4">
@@ -105,41 +129,52 @@
 <script>
     // 訊號翻譯字典
     const signalTranslations = {
-        'kama_bull': 'KAMA 多頭',
-        'kama_slope_turn': 'KAMA 斜率翻正',
-        'macd_golden': 'MACD 黃金交叉',
-        'macd_divergence': 'MACD 底背離',
-        'kd_golden': 'KD 黃金交叉',
-        'rsi_strong': 'RSI 強勢',
-        'vol_explosion': '爆量突破',
-        'momentum_accel': '動量加速',
-        'multi_tf_aligned': '多週期共振',
-        'rs_outperform': '相對大盤強勢',
-        'mean_reversion_extreme': '極值超跌反彈 (均值回歸)',
-        'relative_high': '創近期新高',
-        'pocket_pivot': '口袋支點 (Pocket Pivot)',
-        'volatility_squeeze': '波動率擠壓',
-        'ma_convergence': '均線糾結',
-        'vwap_overbought': 'VWAP 極端超買 (⚠️看空)',
-        'rsi_overbought': 'RSI 極端超買 (⚠️看空)',
-        'kd_death_cross': 'KD 死亡交叉 (⚠️看空)',
-        'price_bottom_reversal': '跌破近低後收回 (破底翻)',
-        'volume_dry_up': '量能萎縮耗盡',
-        'rsi_oversold_hook': 'RSI 超賣區勾起',
-        'kd_oversold_golden': 'KD 超賣區黃金交叉',
-        'lower_shadow_strong': '強勢長下影線 (蜘蛛腳)',
-        'price_above_support': '站回 KDE 支撐位',
-        'decline_deceleration': '跌勢動能遞減',
-        'order_flow_imbalance': '訂單流失衡',
-        'order_flow_high': '訂單流強勢買盤',
-        'sortino_positive': 'Sortino > 0.5 (風報比佳)',
-        'autocorr_positive': '動能慣性顯著',
-        'hurst_trend': 'Hurst 趨勢型'
+        'kama_bull': { text: 'KAMA 多頭', type: 'bull' },
+        'kama_slope_turn': { text: 'KAMA 斜率翻正', type: 'bull' },
+        'macd_golden': { text: 'MACD 黃金交叉', type: 'bull' },
+        'macd_divergence': { text: 'MACD 底背離', type: 'bull' },
+        'kd_golden': { text: 'KD 黃金交叉', type: 'bull' },
+        'rsi_strong': { text: 'RSI 強勢', type: 'bull' },
+        'vol_explosion': { text: '爆量突破', type: 'bull' },
+        'momentum_accel': { text: '動量加速', type: 'bull' },
+        'multi_tf_aligned': { text: '多週期共振', type: 'bull' },
+        'rs_outperform': { text: '相對大盤強勢', type: 'bull' },
+        'mean_reversion_extreme': { text: '極值超跌反彈 (均值回歸)', type: 'bull' },
+        'relative_high': { text: '創近期新高', type: 'bull' },
+        'pocket_pivot': { text: '口袋支點 (Pocket Pivot)', type: 'bull' },
+        'volatility_squeeze': { text: '波動率擠壓', type: 'bull' },
+        'ma_convergence': { text: '均線糾結', type: 'bull' },
+        'vwap_overbought': { text: 'VWAP 極端超買 (看空)', type: 'bear' },
+        'rsi_overbought': { text: 'RSI 極端超買 (看空)', type: 'bear' },
+        'kd_death_cross': { text: 'KD 死亡交叉 (看空)', type: 'bear' },
+        'price_bottom_reversal': { text: '跌破近低後收回 (破底翻)', type: 'bull' },
+        'volume_dry_up': { text: '量能萎縮耗盡', type: 'bull' },
+        'rsi_oversold_hook': { text: 'RSI 超賣區勾起', type: 'bull' },
+        'kd_oversold_golden': { text: 'KD 超賣區黃金交叉', type: 'bull' },
+        'lower_shadow_strong': { text: '強勢長下影線 (蜘蛛腳)', type: 'bull' },
+        'price_above_support': { text: '站回 KDE 支撐位', type: 'bull' },
+        'decline_deceleration': { text: '跌勢動能遞減', type: 'bull' },
+        'order_flow_imbalance': { text: '訂單流失衡', type: 'bull' },
+        'order_flow_high': { text: '訂單流強勢買盤', type: 'bull' },
+        'sortino_positive': { text: 'Sortino > 0.5 (風報比佳)', type: 'bull' },
+        'autocorr_positive': { text: '動能慣性顯著', type: 'bull' },
+        'hurst_trend': { text: 'Hurst 趨勢型', type: 'bull' }
     };
 
     const fileInput = document.getElementById('fileInput');
     const tableBody = document.getElementById('tableBody');
     const resultCard = document.getElementById('result-card');
+
+    // 深色模式控制邏輯
+    let isDarkMode = false;
+    function toggleTheme() {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+        const btn = document.getElementById('themeToggle');
+        btn.innerHTML = isDarkMode ? '🌞 淺色模式' : '🌙 深色模式';
+        btn.classList.toggle('btn-outline-light', isDarkMode);
+        btn.classList.toggle('btn-outline-secondary', !isDarkMode);
+    }
 
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -177,18 +212,35 @@
             const category = item['分類'] || '未分類';
             categories.add(category);
             
-            // 評分大於 80 分時，整列加上淡紅色背景 (table-danger)
+            // 評分視覺化進度條
             const score = parseFloat(item['貝氏評分']) || 0;
-            const rowClass = score > 80 ? 'table-danger' : '';
+            const absScore = Math.abs(score);
+            const pct = Math.min(100, (absScore / 5) * 100); // 假設貝氏滿分為 5
+            const barClass = score >= 0 ? 'bg-success' : 'bg-danger';
+            const textColor = score >= 0 ? 'text-success' : 'text-danger';
+            const scoreHtml = `
+                <div class="d-flex align-items-center">
+                    <span class="${textColor} fw-bold me-2" style="width: 45px; text-align: right;">${score.toFixed(2)}</span>
+                    <div class="progress flex-grow-1" style="height: 8px; min-width: 60px; background-color: #e9ecef;">
+                        <div class="progress-bar ${barClass}" role="progressbar" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+
+            // TradingView 看盤連結
+            const tvLink = `https://tw.tradingview.com/chart/?symbol=TWSE:${item['代號'] || ''}`;
 
             const row = `
-                <tr class="${rowClass}">
+                <tr>
                     <td><strong>${item['代號'] || ''}</strong></td>
                     <td>${item['名稱'] || ''}</td>
-                    <td class="score-high">${item['貝氏評分'] || 0}</td>
+                    <td style="min-width: 150px;">${scoreHtml}</td>
                     <td><span class="badge bg-info text-dark">${category}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="showSignalModal(${index})">👁️ 查看訊號</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary text-nowrap" onclick="showSignalModal(${index})">👁️ 訊號</button>
+                            <a href="${tvLink}" target="_blank" class="btn btn-sm btn-outline-success text-nowrap">📈 看K線</a>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -246,8 +298,12 @@
         }
         
         const translated = sigList.map(s => {
-            const text = signalTranslations[s] ? signalTranslations[s] : s;
-            return `✅ ${text}`;
+            const info = signalTranslations[s];
+            if (info) {
+                const icon = info.type === 'bull' ? '🟢' : '🔴';
+                return `${icon} ${info.text}`;
+            }
+            return `⚪ ${s}`;
         });
         return translated.length ? translated.join('\n') : '無觸發訊號';
     }
