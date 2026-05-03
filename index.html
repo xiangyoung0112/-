@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>股票掃描結果解析器</title>
+    <!-- 引入美化與功能組件 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <style>
+        body { background-color: #f0f2f5; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; }
+        .upload-area { border: 2px dashed #0d6efd; border-radius: 15px; padding: 30px; text-align: center; background: white; transition: 0.3s; cursor: pointer; }
+        .upload-area:hover { background-color: #e9ecef; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .text-box { 
+            font-family: 'Consolas', monospace; font-size: 0.85rem; 
+            background: #f8f9fa; border: 1px solid #dee2e6;
+            padding: 15px; border-radius: 5px; white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .score-high { color: #d63031; font-weight: bold; }
+        .info-box {
+            background-color: #e9f2ff;
+            border-left: 4px solid #0d6efd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-8">
+            <div class="card p-4">
+                <h3 class="text-center mb-3">📊 股票掃描檔解析工具</h3>
+                
+                <!-- 評分說明區塊 -->
+                <div class="info-box">
+                    <h5 class="mb-2">💡 關於「貝氏評分」</h5>
+                    <p class="mb-0 text-muted">此評分是基於多重財務指標與市場動能計算而出的綜合分數。<strong>評分越高</strong>，代表該標的在演重量化模型中具備較大的上漲潛力與勝率。建議您可優先排序並關注高評分的股票，同時搭配右側的「詳細分析文本」作為最終投資決策的參考。</p>
+                </div>
+
+                <!-- 檔案上傳區塊 -->
+                <div class="upload-area" id="drop-area">
+                    <p class="mb-2">點擊或拖放檔案 到此處</p>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" class="form-control d-none">
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">選取檔案</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 結果表格顯示區 -->
+    <div class="card p-4 d-none" id="result-card">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+            <h5 class="m-0 mb-2 mb-md-0">📑 掃描結果列表</h5>
+            <div class="d-flex align-items-center">
+                <label for="categoryFilter" class="me-2 text-nowrap mb-0"><strong>分類篩選：</strong></label>
+                <select id="categoryFilter" class="form-select form-select-sm" style="min-width: 150px;">
+                    <option value="">顯示全部</option>
+                </select>
+            </div>
+        </div>
+        <table id="stockTable" class="table table-hover w-100">
+            <thead class="table-dark">
+                <tr>
+                    <th>代號</th>
+                    <th>名稱</th>
+                    <th>貝氏評分</th>
+                    <th>分類</th>
+                    <th>觸發訊號</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 觸發訊號 Modal -->
+<div class="modal fade" id="signalModal" tabindex="-1" aria-labelledby="signalModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="signalModalLabel">觸發訊號</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalSignalContent" style="white-space: pre-wrap; line-height: 1.6;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 必要的 JS 函式庫 -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // 訊號翻譯字典
+    const signalTranslations = {
+        'kama_bull': 'KAMA 多頭',
+        'kama_slope_turn': 'KAMA 斜率翻正',
+        'macd_golden': 'MACD 黃金交叉',
+        'macd_divergence': 'MACD 底背離',
+        'kd_golden': 'KD 黃金交叉',
+        'rsi_strong': 'RSI 強勢',
+        'vol_explosion': '爆量突破',
+        'momentum_accel': '動量加速',
+        'multi_tf_aligned': '多週期共振',
+        'rs_outperform': '相對大盤強勢',
+        'mean_reversion_extreme': '極值超跌反彈 (均值回歸)',
+        'relative_high': '創近期新高',
+        'pocket_pivot': '口袋支點 (Pocket Pivot)',
+        'volatility_squeeze': '波動率擠壓',
+        'ma_convergence': '均線糾結',
+        'vwap_overbought': 'VWAP 極端超買 (⚠️看空)',
+        'rsi_overbought': 'RSI 極端超買 (⚠️看空)',
+        'kd_death_cross': 'KD 死亡交叉 (⚠️看空)',
+        'price_bottom_reversal': '跌破近低後收回 (破底翻)',
+        'volume_dry_up': '量能萎縮耗盡',
+        'rsi_oversold_hook': 'RSI 超賣區勾起',
+        'kd_oversold_golden': 'KD 超賣區黃金交叉',
+        'lower_shadow_strong': '強勢長下影線 (蜘蛛腳)',
+        'price_above_support': '站回 KDE 支撐位',
+        'decline_deceleration': '跌勢動能遞減',
+        'order_flow_imbalance': '訂單流失衡',
+        'order_flow_high': '訂單流強勢買盤',
+        'sortino_positive': 'Sortino > 0.5 (風報比佳)',
+        'autocorr_positive': '動能慣性顯著',
+        'hurst_trend': 'Hurst 趨勢型'
+    };
+
+    const fileInput = document.getElementById('fileInput');
+    const tableBody = document.getElementById('tableBody');
+    const resultCard = document.getElementById('result-card');
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // 讀取第一個工作表
+            const sheetName = workbook.SheetNames[0];
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+            displayData(jsonData);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function displayData(data) {
+        // 先銷毀舊的表格實例（若存在）
+        if ($.fn.DataTable.isDataTable('#stockTable')) {
+            $('#stockTable').DataTable().destroy();
+        }
+        
+        tableBody.innerHTML = '';
+        resultCard.classList.remove('d-none');
+
+        window.currentStockData = data; // 儲存資料供 Modal 使用
+
+        // 收集所有不重複的分類
+        const categories = new Set();
+
+        data.forEach((item, index) => {
+            const category = item['分類'] || '未分類';
+            categories.add(category);
+            
+            // 評分大於 80 分時，整列加上淡紅色背景 (table-danger)
+            const score = parseFloat(item['貝氏評分']) || 0;
+            const rowClass = score > 80 ? 'table-danger' : '';
+
+            const row = `
+                <tr class="${rowClass}">
+                    <td><strong>${item['代號'] || ''}</strong></td>
+                    <td>${item['名稱'] || ''}</td>
+                    <td class="score-high">${item['貝氏評分'] || 0}</td>
+                    <td><span class="badge bg-info text-dark">${category}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="showSignalModal(${index})">👁️ 查看訊號</button>
+                    </td>
+                </tr>
+            `;
+            tableBody.innerHTML += row;
+        });
+
+        // 建立分類選單
+        const categoryFilter = document.getElementById('categoryFilter');
+        categoryFilter.innerHTML = '<option value="">顯示全部</option>';
+        categories.forEach(cat => {
+            categoryFilter.innerHTML += `<option value="${cat}">${cat}</option>`;
+        });
+
+        // 初始化 DataTables
+        const table = $('#stockTable').DataTable({
+            "order": [[ 2, "desc" ]],
+            "language": { 
+                "search": "🔍 搜尋：",
+                "lengthMenu": "每頁顯示 _MENU_ 筆",
+                "zeroRecords": "沒有找到符合的結果",
+                "info": "顯示第 _START_ 至 _END_ 筆，共 _TOTAL_ 筆",
+                "infoEmpty": "顯示 0 筆結果",
+                "infoFiltered": "(從 _MAX_ 筆結果中過濾)",
+                "paginate": {
+                    "first": "首頁",
+                    "last": "末頁",
+                    "next": "下一頁",
+                    "previous": "上一頁"
+                }
+            }
+        });
+
+        // 綁定分類選單篩選事件
+        $('#categoryFilter').off('change').on('change', function() {
+            const val = $.fn.dataTable.util.escapeRegex($(this).val());
+            if (val) {
+                // 針對「分類」欄位 (索引 3) 使用正規表達式進行完全比對
+                table.column(3).search('^' + val + '$', true, false).draw();
+            } else {
+                table.column(3).search('').draw();
+            }
+        });
+    }
+
+    function translateSignals(rawSignals) {
+        if (!rawSignals || rawSignals === '無') return '無觸發訊號';
+        let sigList = [];
+        try {
+            // 嘗試解析 JSON (處理 ["kama_bull", "macd_golden"] 格式)
+            let parsed = JSON.parse(rawSignals.replace(/'/g, '"')); 
+            sigList = Array.isArray(parsed) ? parsed : [rawSignals];
+        } catch (e) {
+            // 解析字串 (處理 kama_bull, macd_golden 或 ['kama_bull', 'macd_golden'] 格式)
+            sigList = String(rawSignals).replace(/\[|\]|'|"/g, '').split(',').map(s => s.trim()).filter(s => s);
+        }
+        
+        const translated = sigList.map(s => {
+            const text = signalTranslations[s] ? signalTranslations[s] : s;
+            return `✅ ${text}`;
+        });
+        return translated.length ? translated.join('\n') : '無觸發訊號';
+    }
+
+    window.showSignalModal = function(index) {
+        const item = window.currentStockData[index];
+        
+        document.getElementById('signalModalLabel').innerText = `${item['代號'] || ''} ${item['名稱'] || ''} - 觸發訊號`;
+        document.getElementById('modalSignalContent').innerText = translateSignals(item['觸發訊號']);
+        
+        const signalModal = new bootstrap.Modal(document.getElementById('signalModal'));
+        signalModal.show();
+    };
+</script>
+
+</body>
+</html>
