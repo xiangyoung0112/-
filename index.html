@@ -4,75 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>股票掃描結果解析器</title>
-    <!-- 引入美化與功能組件 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
     <style>
-        /* 加入平滑過渡效果 */
         body { background-color: #f0f2f5; padding: 20px; font-family: "Microsoft JhengHei", sans-serif; transition: background-color 0.3s, color 0.3s; }
         .upload-area { border: 2px dashed #0d6efd; border-radius: 15px; padding: 40px 20px; text-align: center; background: white; transition: all 0.3s; cursor: pointer; }
         .upload-area:hover, .upload-area.dragover { background-color: #e9ecef; border-color: #0a58ca; transform: scale(1.01); }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: background-color 0.3s; }
         .info-box { background-color: #e9f2ff; border-left: 4px solid #0d6efd; padding: 15px; margin-bottom: 20px; border-radius: 6px; }
-        
-        /* === 深色模式 (Dark Mode) 樣式 === */
+        .analysis-box { font-family: "Courier New", monospace; font-size: 0.9rem; line-height: 2; white-space: pre-wrap; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 12px 16px; }
+        .signal-item { padding: 3px 0; font-size: 1rem; }
+        #loadingOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.2rem; flex-direction:column; gap:12px; }
+        #loadingOverlay.d-none { display:none !important; }
+
+        /* 深色模式 */
         body.dark-mode { background-color: #18191a; color: #e4e6eb; }
-        .dark-mode .card { background-color: #242526; color: #e4e6eb; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .dark-mode .card { background-color: #242526; color: #e4e6eb; }
         .dark-mode .upload-area { background-color: #242526; border-color: #0d6efd; color: #e4e6eb; }
         .dark-mode .upload-area:hover, .dark-mode .upload-area.dragover { background-color: #3a3b3c; }
         .dark-mode .info-box { background-color: #3a3b3c; border-left-color: #0d6efd; color: #e4e6eb; }
         .dark-mode .text-muted { color: #b0b3b8 !important; }
         .dark-mode .table { color: #e4e6eb; border-color: #3a3b3c; }
-        .dark-mode .table-dark { background-color: #18191a; }
-        .dark-mode .table-hover > tbody > tr:hover > * { color: #ffffff; background-color: #3a3b3c; }
+        .dark-mode .table-hover > tbody > tr:hover > * { color: #fff; background-color: #3a3b3c; }
         .dark-mode .modal-content { background-color: #242526; border-color: #3a3b3c; color: #e4e6eb; }
         .dark-mode .modal-header, .dark-mode .modal-footer { border-color: #3a3b3c; }
         .dark-mode .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
         .dark-mode .form-select, .dark-mode .form-control { background-color: #3a3b3c; color: #e4e6eb; border-color: #4a4b4c; }
-        .dark-mode .form-select:focus, .dark-mode .form-control:focus { background-color: #4a4b4c; color: #fff; border-color: #0d6efd; box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25); }
-        .dark-mode .dataTables_wrapper .dataTables_length, .dark-mode .dataTables_wrapper .dataTables_filter,
-        .dark-mode .dataTables_wrapper .dataTables_info, .dark-mode .dataTables_wrapper .dataTables_paginate { color: #e4e6eb !important; }
+        .dark-mode .dataTables_wrapper .dataTables_length,
+        .dark-mode .dataTables_wrapper .dataTables_filter,
+        .dark-mode .dataTables_wrapper .dataTables_info,
+        .dark-mode .dataTables_wrapper .dataTables_paginate { color: #e4e6eb !important; }
         .dark-mode .page-item .page-link { background-color: #242526; border-color: #3a3b3c; color: #e4e6eb; }
         .dark-mode .page-item.active .page-link { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
         .dark-mode .page-item.disabled .page-link { background-color: #18191a; border-color: #3a3b3c; color: #6c757d; }
+        .dark-mode .analysis-box { background-color: #18191a; border-color: #3a3b3c; color: #c8d0dc; }
+        .dark-mode .modal-body { background-color: #242526 !important; }
+        .dark-mode .bg-light { background-color: #242526 !important; }
+        .dark-mode hr { border-color: #3a3b3c; }
     </style>
 </head>
 <body>
 
-<!-- 深色模式切換按鈕 -->
-<button class="btn btn-outline-secondary position-fixed top-0 end-0 m-3 shadow-sm" id="themeToggle" onclick="toggleTheme()" style="z-index: 1050;">🌙 深色模式</button>
+<!-- 載入中遮罩 -->
+<div id="loadingOverlay">
+    <div class="spinner-border text-light" role="status"></div>
+    <span>正在載入資源，請稍候...</span>
+</div>
+
+<button class="btn btn-outline-secondary position-fixed top-0 end-0 m-3 shadow-sm" id="themeToggle" onclick="toggleTheme()" style="z-index:1050;">🌙 深色模式</button>
 
 <div class="container-fluid py-3">
     <div class="row justify-content-center mb-4">
         <div class="col-md-10 col-lg-8">
             <div class="card p-4">
                 <h3 class="text-center mb-4">📊 股票掃描檔解析工具</h3>
-                
-                <!-- 評分說明區塊 -->
                 <div class="info-box">
                     <h5 class="mb-2">💡 關於「貝氏評分」</h5>
-                    <p class="mb-0 text-muted">此評分是基於多重財務指標與市場動能計算而出的綜合分數。<strong>評分越高</strong>，代表該標的在量化模型中具備較大的上漲潛力與勝率。建議您可優先排序並關注高評分的股票，同時搭配詳細分析文本作為最終投資決策的參考。</p>
+                    <p class="mb-0 text-muted">此評分是基於多重財務指標與市場動能計算而出的綜合分數。<strong>評分越高</strong>，代表該標的在量化模型中具備較大的上漲潛力與勝率。建議優先關注高評分股票，並搭配分析文本作為決策參考。</p>
                 </div>
-
-                <!-- 檔案上傳區塊 -->
                 <div class="upload-area" id="drop-area">
                     <h5 class="mb-2">📁 點擊或拖放 Excel 檔案到此處</h5>
                     <p class="text-muted small mb-3">支援 .xlsx, .xls 格式</p>
-                    <input type="file" id="fileInput" accept=".xlsx, .xls" class="form-control d-none">
-                    <button class="btn btn-primary px-4" onclick="document.getElementById('fileInput').click()">選取檔案</button>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" class="form-control d-none">
+                    <button class="btn btn-primary px-4" id="selectBtn">選取檔案</button>
                     <div id="fileNameDisplay" class="mt-3 text-success fw-bold d-none"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 結果表格顯示區 -->
     <div class="card p-4 d-none" id="result-card">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h5 class="m-0">📑 掃描結果列表</h5>
             <div class="d-flex align-items-center">
                 <label for="categoryFilter" class="me-2 text-nowrap mb-0"><strong>分類篩選：</strong></label>
-                <select id="categoryFilter" class="form-select form-select-sm shadow-sm" style="min-width: 150px;">
+                <select id="categoryFilter" class="form-select form-select-sm shadow-sm" style="min-width:150px;">
                     <option value="">顯示全部</option>
                 </select>
             </div>
@@ -81,11 +87,7 @@
             <table id="stockTable" class="table table-hover w-100 align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th>代號</th>
-                        <th>名稱</th>
-                        <th>貝氏評分</th>
-                        <th>分類</th>
-                        <th>操作與訊號</th>
+                        <th>代號</th><th>名稱</th><th>貝氏評分</th><th>分類</th><th>操作與訊號</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -94,18 +96,24 @@
     </div>
 </div>
 
-<!-- 觸發訊號 Modal -->
+<!-- Modal -->
 <div class="modal fade" id="signalModal" tabindex="-1" aria-labelledby="signalModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title fw-bold" id="signalModalLabel">觸發訊號</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title fw-bold" id="signalModalLabel">詳細資訊</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body bg-light dark-mode-override">
-        <style>.dark-mode .dark-mode-override { background-color: #242526 !important; }</style>
-        <div id="modalSignalContent" class="p-3 border rounded bg-white shadow-sm" style="white-space: pre-wrap; line-height: 1.8; font-size: 1.05rem;"></div>
-        <style>.dark-mode #modalSignalContent { background-color: #18191a !important; border-color: #3a3b3c !important; }</style>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="fw-bold mb-2">📋 分析文本</div>
+          <pre id="modalAnalysisText" class="analysis-box mb-0"></pre>
+        </div>
+        <hr>
+        <div>
+          <div class="fw-bold mb-2">🔔 觸發訊號</div>
+          <div id="modalSignalContent"></div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
@@ -114,264 +122,270 @@
   </div>
 </div>
 
-<!-- 必要的 JS 函式庫 -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
+<!-- ===== 依序載入，全部用 defer + 動態注入確保順序 ===== -->
 <script>
-    // === 新增：分類翻譯字典 ===
-    const categoryTranslations = {
-        'long_term': '長線',
-        'intraday_dip': '盤中拉回',
-        'reversal': '反轉',
-        'pullback': '回檔',
-        'dark_horse': '黑馬',
-        'explosive': '爆發'
-    };
-
-    // 訊號翻譯字典
-    const signalTranslations = {
-        'kama_bull': { text: 'KAMA 多頭', type: 'bull' },
-        'kama_slope_turn': { text: 'KAMA 斜率翻正', type: 'bull' },
-        'macd_golden': { text: 'MACD 黃金交叉', type: 'bull' },
-        'macd_divergence': { text: 'MACD 底背離', type: 'bull' },
-        'kd_golden': { text: 'KD 黃金交叉', type: 'bull' },
-        'rsi_strong': { text: 'RSI 強勢', type: 'bull' },
-        'vol_explosion': { text: '爆量突破', type: 'bull' },
-        'momentum_accel': { text: '動量加速', type: 'bull' },
-        'multi_tf_aligned': { text: '多週期共振', type: 'bull' },
-        'rs_outperform': { text: '相對大盤強勢', type: 'bull' },
-        'mean_reversion_extreme': { text: '極值超跌反彈 (均值回歸)', type: 'bull' },
-        'relative_high': { text: '創近期新高', type: 'bull' },
-        'pocket_pivot': { text: '口袋支點 (Pocket Pivot)', type: 'bull' },
-        'volatility_squeeze': { text: '波動率擠壓', type: 'bull' },
-        'ma_convergence': { text: '均線糾結', type: 'bull' },
-        'vwap_overbought': { text: 'VWAP 極端超買 (看空)', type: 'bear' },
-        'rsi_overbought': { text: 'RSI 極端超買 (看空)', type: 'bear' },
-        'kd_death_cross': { text: 'KD 死亡交叉 (看空)', type: 'bear' },
-        'price_bottom_reversal': { text: '跌破近低後收回 (破底翻)', type: 'bull' },
-        'volume_dry_up': { text: '量能萎縮耗盡', type: 'bull' },
-        'rsi_oversold_hook': { text: 'RSI 超賣區勾起', type: 'bull' },
-        'kd_oversold_golden': { text: 'KD 超賣區黃金交叉', type: 'bull' },
-        'lower_shadow_strong': { text: '強勢長下影線 (蜘蛛腳)', type: 'bull' },
-        'price_above_support': { text: '站回 KDE 支撐位', type: 'bull' },
-        'decline_deceleration': { text: '跌勢動能遞減', type: 'bull' },
-        'order_flow_imbalance': { text: '訂單流失衡', type: 'bull' },
-        'order_flow_high': { text: '訂單流強勢買盤', type: 'bull' },
-        'sortino_positive': { text: 'Sortino > 0.5 (風報比佳)', type: 'bull' },
-        'autocorr_positive': { text: '動能慣性顯著', type: 'bull' },
-        'hurst_trend': { text: 'Hurst 趨勢型', type: 'bull' }
-    };
-
-    const fileInput = document.getElementById('fileInput');
-    const dropArea = document.getElementById('drop-area');
-    const tableBody = document.getElementById('tableBody');
-    const resultCard = document.getElementById('result-card');
-    const fileNameDisplay = document.getElementById('fileNameDisplay');
-
-    let isDarkMode = localStorage.getItem('darkMode') === 'true';
-    
-    function applyTheme() {
-        document.body.classList.toggle('dark-mode', isDarkMode);
-        const btn = document.getElementById('themeToggle');
-        btn.innerHTML = isDarkMode ? '🌞 淺色模式' : '🌙 深色模式';
-        btn.classList.toggle('btn-outline-light', isDarkMode);
-        btn.classList.toggle('btn-outline-secondary', !isDarkMode);
-    }
-    
-    function toggleTheme() {
-        isDarkMode = !isDarkMode;
-        localStorage.setItem('darkMode', isDarkMode);
-        applyTheme();
-    }
-    applyTheme();
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-    });
-
-    dropArea.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length) handleFile(files[0]);
-    });
-
-    fileInput.addEventListener('change', function(e) {
-        if (e.target.files.length) handleFile(e.target.files[0]);
-    });
-
-    function handleFile(file) {
-        if (!file.name.match(/\.(xlsx|xls)$/)) {
-            alert('⚠️ 請上傳 Excel 檔案 (.xlsx 或 .xls)');
-            return;
-        }
-
-        fileNameDisplay.innerText = `📄 已載入檔案: ${file.name}`;
-        fileNameDisplay.classList.remove('d-none');
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            const sheetName = workbook.SheetNames[0];
-            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-            
-            if(jsonData.length === 0) {
-                alert('⚠️ 檔案內沒有資料！');
-                return;
-            }
-            displayData(jsonData);
+// 動態依序載入腳本，確保每個都載入完才執行下一個
+function loadScripts(urls, callback) {
+    function loadNext(i) {
+        if (i >= urls.length) { callback(); return; }
+        var s = document.createElement('script');
+        s.src = urls[i];
+        s.onload = function() { loadNext(i + 1); };
+        s.onerror = function() {
+            document.getElementById('loadingOverlay').innerHTML =
+                '<div class="text-danger fw-bold">❌ 資源載入失敗，請確認網路連線後重新整理頁面。</div>';
         };
-        reader.readAsArrayBuffer(file);
+        document.head.appendChild(s);
     }
+    loadNext(0);
+}
 
-    function displayData(data) {
-        if ($.fn.DataTable.isDataTable('#stockTable')) {
-            $('#stockTable').DataTable().destroy();
-        }
-        
-        tableBody.innerHTML = '';
-        resultCard.classList.remove('d-none');
+loadScripts([
+    'https://code.jquery.com/jquery-3.6.0.min.js',
+    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js',
+    'https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js',
+    'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js'
+], function() {
+    // 全部載入完畢，隱藏遮罩，初始化應用
+    document.getElementById('loadingOverlay').classList.add('d-none');
+    initApp();
+});
 
-        const categories = new Set();
+// ===== 主程式，只在所有依賴就緒後才執行 =====
+function initApp() {
 
-        data.forEach((item) => {
-            // === 核心修改：判斷並翻譯分類名稱 ===
-            const rawCategory = item['分類'] || '未分類';
-            const category = categoryTranslations[rawCategory] || rawCategory; 
-            
-            categories.add(category);
-            
-            const score = parseFloat(item['貝氏評分']) || 0;
-            const absScore = Math.abs(score);
-            const pct = Math.min(100, (absScore / 5) * 100); 
-            const barClass = score >= 0 ? 'bg-success' : 'bg-danger';
-            const textColor = score >= 0 ? 'text-success' : 'text-danger';
-            const scoreHtml = `
-                <div class="d-flex align-items-center">
-                    <span class="${textColor} fw-bold me-2" style="width: 45px; text-align: right;">${score.toFixed(2)}</span>
-                    <div class="progress flex-grow-1" style="height: 8px; min-width: 80px; background-color: var(--bs-gray-300);">
-                        <div class="progress-bar ${barClass}" role="progressbar" style="width: ${pct}%"></div>
-                    </div>
-                </div>
-            `;
+// 分類翻譯
+const categoryTranslations = {
+    'long_term':'長線', 'intraday_dip':'盤中拉回', 'reversal':'反轉',
+    'pullback':'回檔', 'dark_horse':'黑馬', 'explosive':'爆發'
+};
 
-            const tvLink = `https://tw.tradingview.com/chart/?symbol=TWSE:${item['代號'] || ''}`;
-            
-            const rawSignals = JSON.stringify(item['觸發訊號'] || '無').replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+// 完整 41 種訊號翻譯
+const signalTranslations = {
+    'kama_bull':              { text: 'KAMA 多頭',                 type: 'bull' },
+    'kama_slope_turn':        { text: 'KAMA 斜率翻正',             type: 'bull' },
+    'kalman_bull':            { text: 'Kalman 濾波多頭',           type: 'bull' },
+    'macd_golden':            { text: 'MACD 黃金交叉',             type: 'bull' },
+    'macd_divergence':        { text: 'MACD 底背離',               type: 'bull' },
+    'macd_adaptive':          { text: 'MACD 自適應訊號',           type: 'bull' },
+    'kd_golden':              { text: 'KD 黃金交叉',               type: 'bull' },
+    'kd_oversold_golden':     { text: 'KD 超賣區黃金交叉',         type: 'bull' },
+    'rsi_strong':             { text: 'RSI 強勢',                  type: 'bull' },
+    'rsi_adaptive':           { text: 'RSI 自適應強勢',            type: 'bull' },
+    'rsi_oversold_hook':      { text: 'RSI 超賣區勾起',            type: 'bull' },
+    'vol_explosion':          { text: '爆量突破',                  type: 'bull' },
+    'momentum_accel':         { text: '動量加速',                  type: 'bull' },
+    'multi_tf_aligned':       { text: '多週期共振',                type: 'bull' },
+    'rs_outperform':          { text: '相對大盤強勢',              type: 'bull' },
+    'mean_reversion_extreme': { text: '極值超跌反彈（均值回歸）',  type: 'bull' },
+    'relative_high':          { text: '創近期新高',               type: 'bull' },
+    'pocket_pivot':           { text: '口袋支點（Pocket Pivot）',  type: 'bull' },
+    'volatility_squeeze':     { text: '波動率擠壓',               type: 'bull' },
+    'ma_convergence':         { text: '均線糾結',                  type: 'bull' },
+    'price_bottom_reversal':  { text: '破底翻（跌破近低後收回）',  type: 'bull' },
+    'volume_dry_up':          { text: '量能萎縮耗盡',              type: 'bull' },
+    'lower_shadow_strong':    { text: '強勢長下影線（蜘蛛腳）',   type: 'bull' },
+    'price_above_support':    { text: '站回 KDE 支撐位',           type: 'bull' },
+    'decline_deceleration':   { text: '跌勢動能遞減',             type: 'bull' },
+    'order_flow_imbalance':   { text: '訂單流失衡',               type: 'bull' },
+    'order_flow_high':        { text: '訂單流強勢買盤',            type: 'bull' },
+    'sortino_positive':       { text: 'Sortino > 0.5（風報比佳）', type: 'bull' },
+    'autocorr_positive':      { text: '動能慣性顯著',             type: 'bull' },
+    'hurst_trend':            { text: 'Hurst 趨勢型',             type: 'bull' },
+    'alpha_positive':         { text: 'Alpha 正超額報酬',         type: 'bull' },
+    'pv_divergence_bull':     { text: '價量底背離（量縮價穩）',   type: 'bull' },
+    'gap_breakout':           { text: '跳空突破',                  type: 'bull' },
+    'gmm_near_support':       { text: 'GMM 近支撐區',             type: 'bull' },
+    'gap_exhaustion':         { text: '跳空竭盡（反轉訊號）',     type: 'neutral' },
+    'liquidity_ok':           { text: '流動性良好',               type: 'neutral' },
+    'market_breadth_hot':     { text: '大盤市場熱絡',             type: 'neutral' },
+    'vwap_overbought':        { text: 'VWAP 極端超買（看空）',    type: 'bear' },
+    'rsi_overbought':         { text: 'RSI 極端超買（看空）',     type: 'bear' },
+    'kd_death_cross':         { text: 'KD 死亡交叉（看空）',      type: 'bear' },
+    'pv_divergence_bear':     { text: '價量頂背離（量縮價弱）',   type: 'bear' },
+};
+const typeIcon = { bull:'🟢', bear:'🔴', neutral:'🔵' };
 
-            const row = `
-                <tr>
-                    <td><strong>${item['代號'] || ''}</strong></td>
-                    <td class="fw-bold">${item['名稱'] || ''}</td>
-                    <td style="min-width: 180px;">${scoreHtml}</td>
-                    <td><span class="badge bg-info text-dark shadow-sm">${category}</span></td>
-                    <td>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-primary text-nowrap shadow-sm" 
-                                    data-symbol="${item['代號'] || ''}" 
-                                    data-name="${item['名稱'] || ''}" 
-                                    data-signals="${rawSignals}" 
-                                    onclick="showSignalModal(this)">👁️ 訊號</button>
-                            <a href="${tvLink}" target="_blank" class="btn btn-sm btn-outline-success text-nowrap shadow-sm">📈 看K線</a>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            tableBody.innerHTML += row;
-        });
+// 深色模式
+let isDarkMode = localStorage.getItem('darkMode') === 'true';
+function applyTheme() {
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    var btn = document.getElementById('themeToggle');
+    btn.innerHTML = isDarkMode ? '🌞 淺色模式' : '🌙 深色模式';
+    btn.className = 'btn position-fixed top-0 end-0 m-3 shadow-sm ' + (isDarkMode ? 'btn-outline-light' : 'btn-outline-secondary');
+}
+window.toggleTheme = function() { isDarkMode = !isDarkMode; localStorage.setItem('darkMode', isDarkMode); applyTheme(); };
+applyTheme();
 
-        const categoryFilter = document.getElementById('categoryFilter');
-        categoryFilter.innerHTML = '<option value="">顯示全部</option>';
-        categories.forEach(cat => {
-            categoryFilter.innerHTML += `<option value="${cat}">${cat}</option>`;
-        });
+// 拖放上傳
+var fileInput       = document.getElementById('fileInput');
+var dropArea        = document.getElementById('drop-area');
+var tableBody       = document.getElementById('tableBody');
+var resultCard      = document.getElementById('result-card');
+var fileNameDisplay = document.getElementById('fileNameDisplay');
 
-        const table = $('#stockTable').DataTable({
-            "order": [[ 2, "desc" ]], 
-            "pageLength": 25,
-            "language": { 
-                "search": "🔍 搜尋：",
-                "lengthMenu": "每頁顯示 _MENU_ 筆",
-                "zeroRecords": "沒有找到符合的結果",
-                "info": "顯示第 _START_ 至 _END_ 筆，共 _TOTAL_ 筆",
-                "infoEmpty": "顯示 0 筆結果",
-                "infoFiltered": "(從 _MAX_ 筆結果中過濾)",
-                "paginate": {
-                    "first": "首頁",
-                    "last": "末頁",
-                    "next": "下一頁",
-                    "previous": "上一頁"
-                }
-            }
-        });
+document.getElementById('selectBtn').onclick = function() { fileInput.click(); };
 
-        $('#categoryFilter').off('change').on('change', function() {
-            const val = $.fn.dataTable.util.escapeRegex($(this).val());
-            if (val) {
-                table.column(3).search('^' + val + '$', true, false).draw();
-            } else {
-                table.column(3).search('').draw();
-            }
-        });
-    }
+['dragenter','dragover','dragleave','drop'].forEach(function(ev) {
+    dropArea.addEventListener(ev, function(e) { e.preventDefault(); e.stopPropagation(); });
+});
+['dragenter','dragover'].forEach(function(ev) {
+    dropArea.addEventListener(ev, function() { dropArea.classList.add('dragover'); });
+});
+['dragleave','drop'].forEach(function(ev) {
+    dropArea.addEventListener(ev, function() { dropArea.classList.remove('dragover'); });
+});
+dropArea.addEventListener('drop', function(e) {
+    var f = e.dataTransfer.files[0]; if (f) handleFile(f);
+});
+fileInput.addEventListener('change', function(e) {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+});
 
-    function translateSignals(rawSignalsStr) {
-        if (!rawSignalsStr || rawSignalsStr === '無' || rawSignalsStr === '"無"') return '無觸發訊號';
-        let sigList = [];
-        try {
-            let parsed = JSON.parse(rawSignalsStr.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
-            if(typeof parsed === 'string' && (parsed.startsWith('[') || parsed.includes(','))) {
-                parsed = parsed.replace(/\[|\]|'|"/g, '').split(',').map(s => s.trim());
-            }
-            sigList = Array.isArray(parsed) ? parsed : [parsed];
-        } catch (e) {
-            sigList = String(rawSignalsStr).replace(/\[|\]|'|"/g, '').split(',').map(s => s.trim()).filter(s => s);
-        }
-        
-        const translated = sigList.map(s => {
-            const info = signalTranslations[s];
-            if (info) {
-                const icon = info.type === 'bull' ? '🟢' : '🔴';
-                return `${icon} ${info.text} <span class="text-muted small">(${s})</span>`;
-            }
-            return s ? `⚪ ${s}` : '';
-        }).filter(Boolean);
-
-        return translated.length ? translated.join('\n\n') : '無觸發訊號';
-    }
-
-    window.showSignalModal = function(btnElement) {
-        const symbol = btnElement.getAttribute('data-symbol');
-        const name = btnElement.getAttribute('data-name');
-        const rawSignals = btnElement.getAttribute('data-signals');
-        
-        document.getElementById('signalModalLabel').innerText = `${symbol} ${name} - 觸發訊號`;
-        
-        const translatedHtml = translateSignals(rawSignals).replace(/\n\n/g, '<br><br>');
-        document.getElementById('modalSignalContent').innerHTML = translatedHtml;
-        
-        const signalModal = new bootstrap.Modal(document.getElementById('signalModal'));
-        signalModal.show();
+function handleFile(file) {
+    if (!file.name.match(/\.(xlsx|xls)$/i)) { alert('⚠️ 請上傳 Excel 檔案 (.xlsx 或 .xls)'); return; }
+    fileNameDisplay.innerText = '📄 已載入檔案: ' + file.name;
+    fileNameDisplay.classList.remove('d-none');
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: 'array' });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var jsonData = XLSX.utils.sheet_to_json(sheet);
+        if (!jsonData.length) { alert('⚠️ 檔案內沒有資料！'); return; }
+        displayData(jsonData);
     };
-</script>
+    reader.readAsArrayBuffer(file);
+}
 
+// 解析訊號：支援逗號字串 & JSON array
+function parseSignals(raw) {
+    if (!raw || raw === '無' || raw === '') return [];
+    var str = String(raw).trim();
+    try {
+        var parsed = JSON.parse(str);
+        if (Array.isArray(parsed)) return parsed.map(function(s){ return s.trim(); }).filter(Boolean);
+        if (typeof parsed === 'string') str = parsed;
+    } catch(e) {}
+    str = str.replace(/^\[|\]$/g, '').replace(/^['"]|['"]$/g, '');
+    return str.split(',').map(function(s){ return s.trim().replace(/^['"]|['"]$/g,''); }).filter(Boolean);
+}
+
+// 清理分析文本
+function cleanAnalysisText(raw) {
+    if (!raw) return '（無分析文本）';
+    return String(raw)
+        .replace(/\\\\/g, '').replace(/\\n/g, '\n')
+        .replace(/\\\(/g,'(').replace(/\\\)/g,')')
+        .replace(/\\\./g,'.').replace(/\\\+/g,'+').replace(/\\\-/g,'-')
+        .replace(/\\\*/g,'*').replace(/\\\[/g,'[').replace(/\\\]/g,']')
+        .replace(/`/g,'');
+}
+
+// 渲染訊號
+function renderSignals(signals) {
+    if (!signals.length) return '<span class="text-muted">無觸發訊號</span>';
+    return signals.map(function(s) {
+        var info = signalTranslations[s];
+        if (info) return '<div class="signal-item">' + (typeIcon[info.type]||'⚪') + ' <strong>' + info.text + '</strong> <span class="text-muted small">(' + s + ')</span></div>';
+        return '<div class="signal-item">⚪ ' + s + '</div>';
+    }).join('');
+}
+
+// 顯示表格
+function displayData(data) {
+    // 安全銷毀舊 DataTable
+    if (window.jQuery && $.fn.DataTable && $.fn.DataTable.isDataTable('#stockTable')) {
+        $('#stockTable').DataTable().destroy();
+    }
+    tableBody.innerHTML = '';
+    resultCard.classList.remove('d-none');
+
+    var categories = new Set();
+
+    data.forEach(function(item) {
+        var rawCategory = item['分類'] || '未分類';
+        var category = categoryTranslations[rawCategory] || rawCategory;
+        categories.add(category);
+
+        var score = parseFloat(item['貝氏評分']) || 0;
+        var pct = Math.min(100, (Math.abs(score) / 5) * 100);
+        var barClass = score >= 0 ? 'bg-success' : 'bg-danger';
+        var textColor = score >= 0 ? 'text-success' : 'text-danger';
+        var scoreHtml = '<div class="d-flex align-items-center">'
+            + '<span class="' + textColor + ' fw-bold me-2" style="width:45px;text-align:right;">' + score.toFixed(2) + '</span>'
+            + '<div class="progress flex-grow-1" style="height:8px;min-width:80px;background-color:#dee2e6;">'
+            + '<div class="progress-bar ' + barClass + '" style="width:' + pct + '%"></div></div></div>';
+
+        var tvLink = 'https://tw.tradingview.com/chart/?symbol=TWSE:' + (item['代號'] || '');
+        var signals = parseSignals(item['觸發訊號']);
+        var analysisText = cleanAnalysisText(item['分析文本']);
+
+        // base64 編碼避免特殊字元破壞 HTML attribute
+        var encSignals  = btoa(unescape(encodeURIComponent(JSON.stringify(signals))));
+        var encAnalysis = btoa(unescape(encodeURIComponent(analysisText)));
+
+        var row = document.createElement('tr');
+        row.innerHTML = '<td><strong>' + (item['代號']||'') + '</strong></td>'
+            + '<td class="fw-bold">' + (item['名稱']||'') + '</td>'
+            + '<td style="min-width:180px;">' + scoreHtml + '</td>'
+            + '<td><span class="badge bg-info text-dark shadow-sm">' + category + '</span></td>'
+            + '<td><div class="d-flex gap-2">'
+            + '<button class="btn btn-sm btn-primary text-nowrap shadow-sm" '
+            + 'data-symbol="' + (item['代號']||'') + '" '
+            + 'data-name="' + (item['名稱']||'') + '" '
+            + 'data-signals="' + encSignals + '" '
+            + 'data-analysis="' + encAnalysis + '" '
+            + 'onclick="showSignalModal(this)">👁️ 訊號</button>'
+            + '<a href="' + tvLink + '" target="_blank" class="btn btn-sm btn-outline-success text-nowrap shadow-sm">📈 看K線</a>'
+            + '</div></td>';
+        tableBody.appendChild(row);
+    });
+
+    // 分類篩選
+    var categoryFilter = document.getElementById('categoryFilter');
+    categoryFilter.innerHTML = '<option value="">顯示全部</option>';
+    Array.from(categories).sort().forEach(function(cat) {
+        var opt = document.createElement('option');
+        opt.value = cat; opt.textContent = cat;
+        categoryFilter.appendChild(opt);
+    });
+
+    var table = $('#stockTable').DataTable({
+        order: [[2, 'desc']],
+        pageLength: 25,
+        language: {
+            search: '🔍 搜尋：', lengthMenu: '每頁顯示 _MENU_ 筆',
+            zeroRecords: '沒有找到符合的結果',
+            info: '顯示第 _START_ 至 _END_ 筆，共 _TOTAL_ 筆',
+            infoEmpty: '顯示 0 筆結果', infoFiltered: '（從 _MAX_ 筆結果中過濾）',
+            paginate: { first:'首頁', last:'末頁', next:'下一頁', previous:'上一頁' }
+        }
+    });
+
+    $('#categoryFilter').off('change').on('change', function() {
+        var val = $.fn.dataTable.util.escapeRegex($(this).val());
+        if (val) table.column(3).search('^' + val + '$', true, false).draw();
+        else table.column(3).search('').draw();
+    });
+}
+
+// Modal
+window.showSignalModal = function(btn) {
+    var symbol   = btn.getAttribute('data-symbol');
+    var name     = btn.getAttribute('data-name');
+    var signals  = JSON.parse(decodeURIComponent(escape(atob(btn.getAttribute('data-signals')))));
+    var analysis = decodeURIComponent(escape(atob(btn.getAttribute('data-analysis'))));
+
+    document.getElementById('signalModalLabel').innerText = symbol + ' ' + name + ' — 詳細資訊';
+    document.getElementById('modalAnalysisText').textContent = analysis;
+    document.getElementById('modalSignalContent').innerHTML = renderSignals(signals);
+
+    new bootstrap.Modal(document.getElementById('signalModal')).show();
+};
+
+} // end initApp
+</script>
 </body>
 </html>
